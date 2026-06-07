@@ -73,6 +73,17 @@ textarea,input,iframe{width:100%;height:100%;border:none;outline:none;background
   <div class="start-entry" data-app="store">App Store</div>
   <div class="start-entry" data-app="browser">Browser</div>
   <div class="start-entry" data-app="themes">Themes</div>
+  <div class="start-entry" data-app="appstudio">
+App Studio
+</div>
+  
+<div class="start-entry" data-app="gamestudio">
+Game Studio
+</div>
+
+<div class="start-entry" data-app="hack">
+HACK Console
+</div>
 </div>
 
 <!-- Dev Console -->
@@ -130,288 +141,211 @@ textarea,input,iframe{width:100%;height:100%;border:none;outline:none;background
     </div>
   </div>
 </div>
-
 <!-- Modal container -->
 <div id="iso-modal" class="iso-modal"><div class="iso-modal-box"><h3 id="iso-modal-title"></h3><p id="iso-modal-msg"></p><br><button onclick="iso_hide_modal()">OK</button></div></div>
-
+<input
+id="app-importer"
+type="file"
+multiple
+style="display:none"
+>
 <script>
-/* -------------------------
-   SAFE: initialize global namespaces early
-   ------------------------- */
-window.ISO = window.ISO || {};
-window.ISOOS = window.ISOOS || {};
-// virtual FS root
-ISO.fs = ISO.fs || { home: { 'Desktop': {}, 'Documents': {}, 'Apps': {} }, system: {} };
-// theme store
-ISO.themes = ISO.themes || {};
-// installed apps
-ISO.installedApps = JSON.parse(localStorage.getItem('installedApps')||'[]');
+  document
+.getElementById(
+    "app-importer"
+)
+.addEventListener(
+"change",
+e=>{
 
-/* -------------------------
-   Utility / Modal helpers
-   ------------------------- */
-function iso_show_modal(title,msg){document.getElementById('iso-modal-title').innerText=title;document.getElementById('iso-modal-msg').innerText=msg;document.getElementById('iso-modal').classList.add('show');}
-function iso_hide_modal(){document.getElementById('iso-modal').classList.remove('show');}
+    [...e.target.files]
+    .forEach(file=>{
 
-/* -------------------------
-   Boot / GRUB / Login (cleaned)
-   ------------------------- */
-(function bootFlow(){
-  const bootLog = document.getElementById('boot-log');
-  const bootLines = [
-    '[ Firmware ] ISO Virtual BIOS v3.7',
-    '[ Check ] Memory..............OK',
-    '[ Check ] Virtual CPU.........OK',
-    '[ Bootloader ] GRUB-lite engaged',
-    'Loading Ubuntu-Sim Kernel.............OK',
-    'Mounting /system .....................OK',
-    'Mounting /home .......................OK',
-    'Starting Dev Daemons.............[ OK ]',
-    'Starting Window Manager..........[ OK ]',
-    'Theme Engine: Ubuntu-Hybrid.....[ OK ]',
-    'AI Kernel Interface.............[ OK ]',
-    'User Mode Services..............[ OK ]',
-    '\n> AI Subsystem: ONLINE',
-    '> Developer Mode: ENABLED',
-    '> Quantum Theme Hooks: ACTIVE',
-    '\nBoot Complete ✓',
-    'Launching Desktop...'
-  ];
-  const grub = document.getElementById('grub-screen');
-  const opts = Array.from(document.querySelectorAll('#grub-options .grub-opt'));
-  let grubIdx = 0; function render(){ opts.forEach((o,i)=>o.classList.toggle('selected',i===grubIdx)); }
-  render();
-  let grubTimer = setTimeout(()=>startPrint(), 1000);
-  window.addEventListener('keydown', e=>{ clearTimeout(grubTimer); if(e.key==='ArrowUp') grubIdx=(grubIdx-1+opts.length)%opts.length; if(e.key==='ArrowDown') grubIdx=(grubIdx+1)%opts.length; if(e.key==='Enter'||e.key==='Escape'){ clearTimeout(grubTimer); document.getElementById('grub-screen').style.display='none'; startPrint(); } render(); });
+        const reader =
+            new FileReader();
 
-  function startPrint(){ document.getElementById('grub-screen').style.display='none'; let i=0; function step(){ if(i<bootLines.length){ bootLog.textContent += bootLines[i]+"\n"; i++; setTimeout(step,200); } else { setTimeout(()=>{ const bs = document.getElementById('boot-screen'); if(bs){ bs.style.transition='opacity .6s'; bs.style.opacity=0; setTimeout(()=>bs.remove(),600);} showLogin(); },400); } } step(); }
+        reader.onload=()=>{
 
-  function showLogin(){ const login = document.getElementById('login-screen'); login.style.display='flex'; document.getElementById('iso-login-panel').classList.add('iso-login-show'); }
-})();
+            ISO.fs.home.Apps[
+                file.name
+            ] = reader.result;
 
-/* -------------------------
-   Simple desktop & window system wiring
-   ------------------------- */
-const desktop = document.getElementById('desktop');
-const windows = {
-  terminal: document.getElementById('terminal'),
-  files: document.getElementById('files'),
-  store: document.getElementById('store'),
-  browser: document.getElementById('browser'),
-  themes: document.getElementById('themes'),
-  hack: document.getElementById('hack')
+            localStorage.setItem(
+                "iso_fs",
+                JSON.stringify(
+                    ISO.fs
+                )
+            );
+
+        };
+
+        reader.readAsText(file);
+
+    });
+
+});
+// ISO Session Manager
+ISO.session = {
+    loggedIn: false
 };
 
-function openApp(id){ const w = windows[id]; if(!w) return iso_show_modal('Error','App not found: '+id); w.style.display='flex'; bringToFront(w); }
-function closeWindow(id){ const w = windows[id]; if(!w) return; w.style.display='none'; }
-function bringToFront(w){
-  const z = Math.max(1,...Array.from(document.querySelectorAll('.window')).map(e=>+e.style.zIndex||1))+1;
-  w.style.zIndex = z;
-  try{ w.dataset.__lastFocus = Date.now(); }catch(e){}
-} 
+function loginSuccess() {
 
-// make windows draggable by their titlebar
-for(const el of Object.values(windows)){
-  const bar = el.querySelector('.titlebar'); let dragging=false, ox=0, oy=0;
-  bar.addEventListener('mousedown', e=>{ dragging=true; ox=e.offsetX; oy=e.offsetY; bringToFront(el); });
-  window.addEventListener('mouseup', ()=>dragging=false);
-  window.addEventListener('mousemove', e=>{ if(dragging){ el.style.left=(e.pageX-ox)+'px'; el.style.top=(e.pageY-oy)+'px'; }});
+    ISO.session.loggedIn = true;
+
+    localStorage.setItem(
+        "iso_logged_in",
+        "1"
+    );
+
+    document.getElementById(
+        "login-screen"
+    ).style.display = "none";
+
+    restoreInstalledIcons();
+
+    iso_show_modal(
+        "Welcome",
+        "ISO-OS Desktop Loaded"
+    );
 }
+  ISO.AppStore = {
 
-// taskbar / start menu wiring
-const launcherBtn = document.getElementById('launcher-btn'); const startMenu = document.getElementById('startmenu');
-launcherBtn.addEventListener('click', ()=>{ startMenu.style.display = startMenu.style.display==='flex'?'none':'flex'; startMenu.style.flexDirection='column'; });
-startMenu.addEventListener('click', e=>{ const app = e.target.dataset.app; if(app) openApp(app); });
+    repos: [],
 
-// clock
-setInterval(()=>{ document.getElementById('clock').textContent = new Date().toLocaleTimeString(); },1000);
+    async install(repoUrl){
 
-// ===== Keyboard shortcuts =====
-(function(){
-  // Ensure windows track focus when clicked
-  document.addEventListener('mousedown', e=>{
-    const w = e.target.closest && e.target.closest('.window');
-    if(w){ try{ w.dataset.__lastFocus = Date.now(); }catch(err){} }
-  });
+        try{
 
-  window.addEventListener('keydown', e=>{
-    // Super / Meta toggles start menu
-    if(e.key === 'Meta' || e.key === 'Super'){
-      startMenu.style.display = startMenu.style.display==='flex' ? 'none' : 'flex';
-      e.preventDefault();
-      return;
-    }
+            const manifestURL =
+                repoUrl
+                .replace(
+                    "github.com",
+                    "raw.githubusercontent.com"
+                )
+                + "/main/isoapp.json";
 
-    // Alt+Tab -> switch windows
-    if(e.altKey && e.key === 'Tab'){
-      const visible = Array.from(document.querySelectorAll('.window')).filter(w=>w.style.display==='flex');
-      if(visible.length){
-        visible.sort((a,b)=> (b.dataset.__lastFocus||0)-(a.dataset.__lastFocus||0));
-        const top = visible.shift();
-        const next = visible.shift() || top;
-        if(next) bringToFront(next);
-      }
-      e.preventDefault();
-      return;
-    }
+            const manifest =
+                await fetch(manifestURL)
+                .then(r=>r.json());
 
-    // Ctrl+Alt+T -> open terminal
-    if(e.ctrlKey && e.altKey && e.key.toLowerCase() === 't'){
-      openApp('terminal'); e.preventDefault(); return;
-    }
+            ISO.installedApps.push(
+                manifest.name
+            );
 
-    // Ctrl+S in HACK editor -> save
-    if(e.ctrlKey && !e.altKey && !e.metaKey && e.key.toLowerCase() === 's'){
-      const active = document.activeElement;
-      if(active && active.id === 'hack-editor'){
-        e.preventDefault(); saveHackFile(); iso_show_modal('Saved','File saved (Ctrl+S)');
-      }
-    }
+            localStorage.setItem(
+                "installedApps",
+                JSON.stringify(
+                    ISO.installedApps
+                )
+            );
 
-    // F11 -> toggle fullscreen on focused window
-    if(e.key === 'F11'){
-      const windowsArr = Array.from(document.querySelectorAll('.window')).filter(w=>w.style.display==='flex');
-      if(windowsArr.length){ windowsArr.sort((a,b)=> (b.dataset.__lastFocus||0)-(a.dataset.__lastFocus||0)); const focused = windowsArr[0]; if(focused){
-        if(!focused.classList.contains('fullscreen')){
-          focused.dataset.prevStyle = JSON.stringify({left:focused.style.left, top:focused.style.top, width:focused.style.width, height:focused.style.height});
-          focused.classList.add('fullscreen'); focused.style.left='0'; focused.style.top='0'; focused.style.width='100vw'; focused.style.height='100vh';
-        } else {
-          try{ const prev = JSON.parse(focused.dataset.prevStyle||'{}'); focused.classList.remove('fullscreen'); focused.style.left=prev.left||focused.style.left; focused.style.top=prev.top||focused.style.top; focused.style.width=prev.width||focused.style.width; focused.style.height=prev.height||focused.style.height; }catch(err){}
+            restoreInstalledIcons();
+
+            iso_show_modal(
+                "Installed",
+                manifest.name
+            );
+
+        }catch(err){
+
+            iso_show_modal(
+                "Install Failed",
+                err.message
+            );
         }
-      }} e.preventDefault(); return;
     }
-
-    // Ctrl+Shift+Esc -> Task Manager modal
-    if(e.ctrlKey && e.shiftKey && e.key === 'Escape'){
-      const wins = Array.from(document.querySelectorAll('.window')).map(w=>({id:w.id,title:(w.querySelector('.titlebar')||{textContent:w.id}).textContent.trim(),visible:w.style.display}));
-      const html = wins.map(x=>`<div style="padding:6px;display:flex;justify-content:space-between"><div>${x.title}</div><div>${x.visible}</div></div>`).join('');
-      iso_show_modal('Task Manager', html);
-      e.preventDefault(); return;
-    }
-
-    // Login Enter handler when focus in password field
-    if(e.key === 'Enter' && document.activeElement && document.activeElement.id === 'iso-pass'){
-      const val = document.getElementById('iso-pass').value.trim();
-      if(val === '123123' || val === 'ubuntu'){
-        document.getElementById('login-screen').style.display='none'; restoreInstalledIcons(); iso_show_modal('Welcome','Logged in');
-      } else {
-        document.getElementById('iso-login-msg').style.display='block';
-      }
-      e.preventDefault(); return;
-    }
-  });
-})();
-
-/* -------------------------
-   Terminal + commands that use the virtual FS
-   ------------------------- */
-const termOut = document.getElementById('term-content');
-const termIn = document.getElementById('term-input');
-let cwd = '/home/user';
-function vfs_read(path){ // simple path resolver (very small)
-  if(path==='.'||path==='') path=cwd; if(path.startsWith('~/')) path=path.replace('~','/home/user');
-  return JSON.stringify(ISO.fs,null,2);
-}
-function vfs_write(path,content){ ISO.fs.home[path]=content; localStorage.setItem('iso_fs', JSON.stringify(ISO.fs)); }
-
-termIn.addEventListener('keydown', e=>{ if(e.key==='Enter'){ const cmd = termIn.value.trim(); termOut.innerHTML += `> ${cmd}<br>`; handleCmd(cmd); termIn.value=''; termOut.scrollTop = termOut.scrollHeight; }});
-function handleCmd(cmd){ if(!cmd) return; if(cmd==='help') termOut.innerHTML += 'Commands: help, ls, mkfile <name>, cat <name>, install <app><br>';
-  else if(cmd==='ls'){ termOut.innerHTML += vfs_read('.') + '<br>'; }
-  else if(cmd.startsWith('mkfile ')){ const name = cmd.split(' ')[1]; ISO.fs.home[name]=''; localStorage.setItem('iso_fs',JSON.stringify(ISO.fs)); termOut.innerHTML += `Created ${name}<br>`; }
-  else if(cmd.startsWith('cat ')){ const name=cmd.split(' ')[1]; termOut.innerHTML += (ISO.fs.home[name]||'') + '<br>'; }
-  else if(cmd.startsWith('install ')){ const app = cmd.split(' ')[1]; ISO.installedApps.push(app); localStorage.setItem('installedApps',JSON.stringify(ISO.installedApps)); termOut.innerHTML += `Installed ${app}<br>`; }
-  else termOut.innerHTML += 'Unknown command<br>';
-}
-
-/* -------------------------
-   App Store (modal UI instead of alerts)
-   ------------------------- */
-const appStoreApps = [ {name:'Paint',id:'paint'},{name:'Music Player',id:'music'},{name:'Weather',id:'weather'} ];
-function openAppStore(){
-  // build a simple modal list
-  const html = appStoreApps.map(a=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;"><div><strong>${a.name}</strong><div style='font-size:12px;color:#ccc'>Sample app</div></div><div><button data-id='${a.id}'>Install</button></div></div>`).join('');
-  document.getElementById('iso-modal-title').innerText='App Store'; document.getElementById('iso-modal-msg').innerHTML = html; document.getElementById('iso-modal').classList.add('show');
-  // attach handlers
-  document.querySelectorAll('#iso-modal button[data-id]').forEach(b=>b.addEventListener('click', ()=>{ const id=b.dataset.id; installApp(id); iso_hide_modal(); }));
-}
-function installApp(id){ if(!ISO.installedApps.includes(id)){ ISO.installedApps.push(id); localStorage.setItem('installedApps',JSON.stringify(ISO.installedApps)); iso_show_modal('Installed', id+' installed'); restoreInstalledIcons(); } else iso_show_modal('Info', id+' already installed'); }
-
-/* -------------------------
-   Restore installed app icons on desktop
-   ------------------------- */
-function restoreInstalledIcons(){ const installed = ISO.installedApps || []; const desk = document.getElementById('desktop'); installed.forEach((app,i)=>{ if(document.querySelector('.icon[data-app="'+app+'"]')) return; const icon=document.createElement('div'); icon.className='icon'; icon.style.left=(40 + (i*90))+'px'; icon.style.top='40px'; icon.setAttribute('data-app',app); icon.innerHTML = `<img src='https://i.imgur.com/6YVQZ7Z.png'><div style='color:var(--text)'>${app}</div>`; icon.addEventListener('dblclick', ()=>iso_show_modal('Launch', app+' would launch (sim)')); desk.appendChild(icon); }); }
-
-// restore at load
-restoreInstalledIcons();
-
-/* -------------------------
-   HACK app filesystem helpers
-   ------------------------- */
-ISO.fs.home.apps = ISO.fs.home.apps || {};
-function refreshHackFileList(){ const list = document.getElementById('hack-file-list'); list.innerHTML=''; for(const name in ISO.fs.home.apps){ const el=document.createElement('div'); el.textContent=name; el.style.padding='6px'; el.style.cursor='pointer'; el.addEventListener('click', ()=>loadHackFile(name)); list.appendChild(el);} }
-function loadHackFile(name){ document.getElementById('hack-filename').value = name; document.getElementById('hack-editor').value = ISO.fs.home.apps[name] || ''; }
-function saveHackFile(){ const name=document.getElementById('hack-filename').value.trim(); if(!name) return iso_show_modal('Error','Provide filename'); ISO.fs.home.apps[name]=document.getElementById('hack-editor').value; localStorage.setItem('iso_fs',JSON.stringify(ISO.fs)); refreshHackFileList(); iso_show_modal('Saved', name); }
-function deleteHackFile(){ const name=document.getElementById('hack-filename').value.trim(); if(!name || !ISO.fs.home.apps[name]) return iso_show_modal('Error','No such file'); if(!confirm('Delete '+name+'?')) return; delete ISO.fs.home.apps[name]; localStorage.setItem('iso_fs',JSON.stringify(ISO.fs)); refreshHackFileList(); document.getElementById('hack-filename').value=''; document.getElementById('hack-editor').value=''; iso_show_modal('Deleted',name); }
-function runHackFile(){ const name=document.getElementById('hack-filename').value.trim(); if(!name || !ISO.fs.home.apps[name]) return iso_show_modal('Error','No such file'); const content=ISO.fs.home.apps[name]; const runArea=document.getElementById('hack-run-area'); runArea.style.display='block'; runArea.innerHTML=''; if(name.endsWith('.html')){ const ifr=document.createElement('iframe'); ifr.style.width='100%'; ifr.style.height='100%'; ifr.sandbox='allow-scripts'; ifr.srcdoc = content; runArea.appendChild(ifr);} else if(name.endsWith('.js')){ const ifr=document.createElement('iframe'); ifr.style.width='100%'; ifr.style.height='100%'; ifr.sandbox='allow-scripts'; runArea.appendChild(ifr); const doc = ifr.contentWindow.document; doc.open(); doc.write('<body></body>'); doc.close(); const script = doc.createElement('script'); script.textContent = `try{(function(){${content}})();}catch(e){document.body.innerText='Error: '+e}`; doc.body.appendChild(script);} else { runArea.textContent = content; } }
-
-// hookup hack UI
-document.getElementById('save-file').addEventListener('click', saveHackFile);
-document.getElementById('delete-file').addEventListener('click', deleteHackFile);
-document.getElementById('run-file').addEventListener('click', runHackFile);
-document.getElementById('new-file-btn').addEventListener('click', ()=>{ const name = prompt('New filename (e.g. mygame.html or script.js)'); if(!name) return; document.getElementById('hack-filename').value=name; document.getElementById('hack-editor').value=''; });
-document.getElementById('export-file').addEventListener('click', ()=>{ const txt=document.getElementById('hack-editor').value; const name=document.getElementById('hack-filename').value||'export.txt'; const blob=new Blob([txt],{type:'text/plain'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=name; a.click(); URL.revokeObjectURL(url); });
-refreshHackFileList();
-
-/* -------------------------
-   God console (safe eval) - restrict to simple expressions
-   ------------------------- */
-(function(){ const asc=document.createElement('div'); asc.id='godConsole'; asc.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.85);color:#0f0;font-family:monospace;padding:20px;display:none;z-index:99999;'; asc.innerHTML=`<div>GOD-KERNEL CONSOLE ACTIVE</div><div id="godLog" style="height:70%;overflow:auto;margin:10px 0;border:1px solid #0f0;padding:6px;"></div><input id="godCmd" placeholder="> kernel command..." style="width:100%;background:black;color:#0f0;border:1px solid #0f0;padding:6px;">`; document.body.appendChild(asc); const godLog=document.getElementById('godLog'); const godCmd=document.getElementById('godCmd'); window.addEventListener('keydown', e=>{ if(e.ctrlKey && e.key==='`'){ asc.style.display = asc.style.display==='none'?'block':'none'; godCmd.focus(); }}); godCmd.addEventListener('keydown', e=>{ if(e.key==='Enter'){ const cmd = godCmd.value.trim(); godLog.innerHTML += `> ${cmd}<br>`; try{ // VERY limited eval: allow only property access or function calls on ISO namespace
-    if(cmd.startsWith('ISO.')){ const res = Function('ISO', `return ${cmd}`)(ISO); godLog.innerHTML += `<div>${String(res)}</div>`; } else godLog.innerHTML += '<div style="color:orange">Only ISO.* expressions allowed</div>'; }catch(err){ godLog.innerHTML += `<div style="color:red">${err}</div>`;} godCmd.value=''; godLog.scrollTop = godLog.scrollHeight; }});
-})();
-
-/* -------------------------
-   Theme & wallpaper helpers
-   ------------------------- */
-ISO.themePresets = {
-  ubuntu:{blur:'8px',wallpaper:'https://wallpapers.com/images/hd/ubuntu-mountains-4k-7tck8np5pqx8fv8x.jpg'},
-  macos:{blur:'12px',wallpaper:'https://wallpapercat.com/w/full/d/4/4/15927-3840x2160-desktop-4k-macos-sierra-wallpaper-photo.jpg'}
 };
-ISO.setTheme = (name)=>{ const p = ISO.themePresets[name]; if(!p) return; document.body.style.backgroundImage = `url('${p.wallpaper}')`; };
+  <div id="appstudio" class="window">
 
-/* -------------------------
-   Persistence & restore
-   ------------------------- */
-// load fs from localStorage if exists
-try{ const loaded = JSON.parse(localStorage.getItem('iso_fs')||'null'); if(loaded) ISO.fs = loaded; }catch(e){}
-// restore installed apps
-ISO.installedApps = JSON.parse(localStorage.getItem('installedApps')||'[]'); restoreInstalledIcons();
+<div class="titlebar">
+App Studio
 
-/* -------------------------
-   Kernel helpers (dmesg etc) - ensure ISO exists first
-   ------------------------- */
-ISO.dmesg = ()=>`[0.000] Boot OK\n[0.041] Loading modules...\n[1.225] Network up`;
+<div class="window-controls">
+<span onclick="closeWindow('appstudio')">
+✕
+</span>
+</div>
 
-/* -------------------------
-   Small test cases (automated checks)
-   ------------------------- */
-function runTests(){ console.log('Running small self-tests...');
-  // test VFS write/read
-  vfs_write('test.txt','hello');
-  const read = ISO.fs.home['test.txt']; if(read!=='hello') console.error('VFS test failed'); else console.log('VFS test passed');
-  // test install
-  installApp('test-app'); if(!ISO.installedApps.includes('test-app')) console.error('Install test failed'); else console.log('Install test passed');
-}
-// run tests quietly after load
-setTimeout(runTests,1000);
+</div>
 
-/* -------------------------
-   Expose small API to console for debugging
-   ------------------------- */
-window.OS = { openApp, installApp, vfs_write, vfs_read, ISO };
+<textarea
+id="appstudio-editor"
+style="flex:1"
+></textarea>
 
-// show desktop when login succeeded or auto-login
-(function(){ const auto = localStorage.getItem('iso_auto'); if(auto){ document.getElementById('login-screen').style.display='none'; restoreInstalledIcons(); } })();
+</div>
+  <div id="gamestudio" class="window">
 
-</script>
+<div class="titlebar">
+Game Studio
+
+<div class="window-controls">
+<span onclick="closeWindow('gamestudio')">
+✕
+</span>
+</div>
+
+</div>
+
+<textarea
+id="gamestudio-editor"
+style="flex:1"
+></textarea>
+
+</div>
+  <div id="gamestudio" class="window">
+
+<div class="titlebar">
+Game Studio
+
+<div class="window-controls">
+<span onclick="closeWindow('gamestudio')">
+✕
+</span>
+</div>
+
+</div>
+
+<textarea
+id="gamestudio-editor"
+style="flex:1"
+></textarea>
+
+</div>
+  document
+.getElementById(
+    "browser-url"
+)
+.addEventListener(
+"keydown",
+e=>{
+
+    if(e.key==="Enter"){
+
+        document
+        .getElementById(
+            "browser-frame"
+        )
+        .src =
+        e.target.value;
+    }
+});
+  ISO.installISOAPP =
+function(manifest){
+
+    ISO.installedApps.push(
+        manifest.name
+    );
+
+    localStorage.setItem(
+        "installedApps",
+        JSON.stringify(
+            ISO.installedApps
+        )
+    );
+
+    restoreInstalledIcons();
+};
 </body>
 </html>
